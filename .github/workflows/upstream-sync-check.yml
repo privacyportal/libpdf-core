@@ -1,0 +1,114 @@
+name: Upstream sync check
+
+on:
+  schedule:
+    - cron: '0 9 1,15 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v6
+        with:
+          ref: privacyportal/dek_injection
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/LibPDF-js/core.git
+          git fetch upstream
+
+      - name: Check for drift
+        id: drift
+        run: |
+          BEHIND=$(git rev-list main..upstream/main --count)
+          UPSTREAM_SHA=$(git rev-parse upstream/main)
+          UPSTREAM_VERSION=$(git show upstream/main:package.json | jq -r '.version')
+          echo "behind=$BEHIND" >> $GITHUB_OUTPUT
+          echo "upstream_sha=$UPSTREAM_SHA" >> $GITHUB_OUTPUT
+          echo "upstream_version=$UPSTREAM_VERSION" >> $GITHUB_OUTPUT
+          echo "Fork is $BEHIND commits behind upstream (v$UPSTREAM_VERSION)"
+
+      - name: No drift — exit early
+        if: steps.drift.outputs.behind == '0'
+        run: echo "Fork is up to date with upstream. Nothing to do."
+
+      - name: Sync fork main with upstream
+        if: steps.drift.outputs.behind != '0'
+        run: |
+          git checkout main
+          git merge --ff-only upstream/main
+          git push origin main
+
+      - name: Attempt rebase of patch branch
+        id: rebase
+        if: steps.drift.outputs.behind != '0'
+        run: |
+          git checkout privacyportal/dek_injection
+          git rebase main && echo "success=true" >> $GITHUB_OUTPUT || echo "success=false" >> $GITHUB_OUTPUT
+
+      - name: Push sync branch (clean rebase)
+        if: steps.drift.outputs.behind != '0' && steps.rebase.outputs.success == 'true'
+        run: git push origin privacyportal/dek_injection --force-with-lease
+
+      - name: Open PR (clean rebase)
+        if: steps.drift.outputs.behind != '0' && steps.rebase.outputs.success == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: sync/upstream-${{ steps.drift.outputs.upstream_version }}
+          base: privacyportal/dek_injection
+          title: "chore: rebase onto upstream v${{ steps.drift.outputs.upstream_version }}"
+          body: |
+            Automated rebase onto upstream v${{ steps.drift.outputs.upstream_version }}.
+
+            **Before merging:**
+            - [ ] Review the diff, particularly any changes to encryption-related files
+            - [ ] Confirm the DEK injection patch is intact
+            - [ ] CI passes
+
+            **After merging:**
+            Push tag `v${{ steps.drift.outputs.upstream_version }}-your-org.1` to publish.
+
+            Upstream commit: ${{ steps.drift.outputs.upstream_sha }}
+
+      - name: Abort rebase and push conflict branch
+        if: steps.drift.outputs.behind != '0' && steps.rebase.outputs.success == 'false'
+        run: |
+          git rebase --abort
+          git checkout -b sync/upstream-${{ steps.drift.outputs.upstream_version }}-conflicts
+          git push origin sync/upstream-${{ steps.drift.outputs.upstream_version }}-conflicts
+
+      - name: Open PR (rebase conflict — manual intervention needed)
+        if: steps.drift.outputs.behind != '0' && steps.rebase.outputs.success == 'false'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: sync/upstream-${{ steps.drift.outputs.upstream_version }}-conflicts
+          base: privacyportal/dek_injection
+          title: "chore: rebase onto upstream v${{ steps.drift.outputs.upstream_version }} [CONFLICTS]"
+          body: |
+            ⚠️ Automated rebase onto upstream v${{ steps.drift.outputs.upstream_version }} **failed with conflicts.**
+
+            `main` has been synced with upstream successfully. Only the rebase of
+            `privacyportal/dek_injection` requires manual intervention.
+
+            Manual steps to resolve:
+            ```bash
+            git fetch origin
+            git checkout privacyportal/dek_injection
+            git rebase main
+            # resolve conflicts
+            git push origin privacyportal/dek_injection --force-with-lease
+            ```
+
+            Upstream commit: ${{ steps.drift.outputs.upstream_sha }}

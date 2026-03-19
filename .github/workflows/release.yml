@@ -2,27 +2,22 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - dek_injection
 
 permissions:
   contents: write
-  id-token: write
+  packages: write
 
 jobs:
   release:
     name: Release & Publish
     runs-on: ubuntu-latest
-    environment: npm
+    environment: internal
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -31,16 +26,32 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "22"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Update npm for trusted publishing
-        run: npm install -g npm@latest
+          registry-url: "https://npm.pkg.github.com"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
       - name: Build
         run: bun run build
+
+      - name: Test
+        run: bun run test:run
+
+      - name: Create Tag
+        id: create_tag
+        uses: butlerlogic/action-autotag@a825539276d173dbaa8d39fb45024d85d292f4f3 # 1.1.2
+        with:
+          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          strategy: package
+          tag_prefix: 'v'
+
+      - name: Create GitHub Release
+        if: steps.create_tag.outputs.tagcreated == 'yes'
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          tag_name: ${{ steps.create_tag.outputs.tagname }}
+          prerelease: ${{ contains(steps.create_tag.outputs.tagname, 'alpha') || contains(steps.create_tag.outputs.tagname, 'beta') || contains(steps.create_tag.outputs.tagname, 'rc') }}
 
       - name: Determine dist-tag
         id: dist-tag
@@ -56,5 +67,7 @@ jobs:
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi
 
-      - name: Publish to npm
-        run: npm publish --provenance --access public --tag ${{ steps.dist-tag.outputs.tag }}
+      - name: Publish to GitHub Packages
+        run: npm publish --access restricted --tag ${{ steps.dist-tag.outputs.tag }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

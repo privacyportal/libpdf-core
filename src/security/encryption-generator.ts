@@ -70,7 +70,7 @@ export function generateEncryption(options: ProtectionOptions): GeneratedEncrypt
   const encryptMetadata = options.encryptMetadata ?? true;
 
   // Generate random 32-byte file encryption key
-  const fileEncryptionKey = randomBytes(32);
+  const fileEncryptionKey = options.fileEncryptionKey ?? randomBytes(32);
 
   // Generate user entries (/U and /UE)
   const { u, ue } = generateUserEntries(userPassword, fileEncryptionKey, 6);

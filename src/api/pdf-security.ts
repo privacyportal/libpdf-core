@@ -44,6 +44,12 @@ export interface ProtectionOptions {
   ownerPassword?: string;
 
   /**
+   * File Encryption Key.
+   * If omitted a random 32 byte key is generated and used.
+   */
+  fileEncryptionKey?: Uint8Array;
+
+  /**
    * Permission flags.
    * Omitted permissions default to true (allowed).
    */

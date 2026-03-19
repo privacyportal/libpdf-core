@@ -2,8 +2,8 @@ name: Benchmarks
 
 on:
   # Run weekly on Mondays at 06:00 UTC
-  schedule:
-    - cron: "0 6 * * 1"
+  # schedule:
+  #   - cron: "0 6 * * 1"
   # Allow manual trigger
   workflow_dispatch:
 
