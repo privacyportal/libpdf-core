@@ -76,6 +76,13 @@ jobs:
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi
 
+      - name: Update package.json version
+        run: |
+          VERSION="${{ steps.create_tag.outputs.tagname }}"
+          VERSION="${VERSION#v}"
+          jq --arg v "$VERSION" '.version = $v' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
       - name: Publish to GitHub Packages
         run: npm publish --access restricted --tag ${{ steps.dist-tag.outputs.tag }}
         env:
