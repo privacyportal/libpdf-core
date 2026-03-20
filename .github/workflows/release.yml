@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - dek_injection
+  workflow_dispatch:
+    inputs:
+      tag_suffix:
+        description: 'add a suffix to the tag'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write
@@ -44,6 +51,7 @@ jobs:
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
           strategy: package
           tag_prefix: 'v'
+          tag_suffix: ${{ github.event.inputs.tag_suffix }}
 
       - name: Create GitHub Release
         if: steps.create_tag.outputs.tagcreated == 'yes'

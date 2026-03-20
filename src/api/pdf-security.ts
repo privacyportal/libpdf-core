@@ -50,6 +50,12 @@ export interface ProtectionOptions {
   fileEncryptionKey?: Uint8Array;
 
   /**
+   * File Id.
+   * If omitted two random 16 byte sub ids are generated and used.
+   */
+  fileId?: [Uint8Array, Uint8Array]
+
+  /**
    * Permission flags.
    * Omitted permissions default to true (allowed).
    */

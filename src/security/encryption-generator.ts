@@ -84,7 +84,7 @@ export function generateEncryption(options: ProtectionOptions): GeneratedEncrypt
   // Generate file ID (two random 16-byte values)
   const id1 = randomBytes(16);
   const id2 = randomBytes(16);
-  const fileId: [Uint8Array, Uint8Array] = [id1, id2];
+  const fileId: [Uint8Array, Uint8Array] = options.fileId ?? [id1, id2];
 
   // Build encryption dictionary
   const encryptDict = PdfDict.of({
