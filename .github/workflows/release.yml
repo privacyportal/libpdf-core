@@ -64,7 +64,8 @@ jobs:
       - name: Determine dist-tag
         id: dist-tag
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ steps.create_tag.outputs.tagname }}"
+          VERSION="${VERSION#v}"
           if [[ "$VERSION" == *"alpha"* ]]; then
             echo "tag=alpha" >> $GITHUB_OUTPUT
           elif [[ "$VERSION" == *"beta"* ]]; then
