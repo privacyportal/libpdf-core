@@ -18,10 +18,11 @@ import { AbstractSecurityHandler } from "./abstract";
 function makeIVGenerator(seed: Uint8Array) {
   let counter = 0;
   return function nextIV(): Uint8Array {
-    const iv = sha256
-      .create()
+    const counterBytes = new Uint8Array(4)
+    new DataView(counterBytes.buffer).setUint32(0, counter++, false)
+    const iv = sha256.create()
       .update(seed)
-      .update(Buffer.from([counter++]))
+      .update(counterBytes)
       .digest()
       .subarray(0, 16);
     return iv;
