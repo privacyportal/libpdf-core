@@ -5,6 +5,7 @@
  * the encryption version, revision, and crypt filter configuration.
  */
 
+import { createHash } from "crypto";
 import type { EncryptionDict } from "../encryption-dict";
 import { type AbstractSecurityHandler, IdentityHandler } from "./abstract";
 import { AES128Handler } from "./aes128";
@@ -34,13 +35,13 @@ export interface HandlerConfig {
  * @param fileKey - File encryption key (from password verification)
  * @returns Handler configuration for strings, streams, and embedded files
  */
-export function createHandlers(encryptDict: EncryptionDict, fileKey: Uint8Array): HandlerConfig {
+export function createHandlers(encryptDict: EncryptionDict, fileKey: Uint8Array, ivSeed?: Uint8Array): HandlerConfig {
   const { version, algorithm, stringFilter, streamFilter, embeddedFileFilter, cryptFilters } =
     encryptDict;
 
   // V1-V3: Same handler for everything based on algorithm
   if (version < 4) {
-    const handler = createHandlerForAlgorithm(algorithm, fileKey);
+    const handler = createHandlerForAlgorithm(algorithm, fileKey, ivSeed);
 
     return {
       stringHandler: handler,
@@ -51,15 +52,24 @@ export function createHandlers(encryptDict: EncryptionDict, fileKey: Uint8Array)
 
   // V4+: Check crypt filters for each content type
   return {
-    stringHandler: createHandlerForFilter(stringFilter, cryptFilters, algorithm, fileKey),
-    streamHandler: createHandlerForFilter(streamFilter, cryptFilters, algorithm, fileKey),
+    stringHandler: createHandlerForFilter(stringFilter, cryptFilters, algorithm, fileKey, ivSeed),
+    streamHandler: createHandlerForFilter(streamFilter, cryptFilters, algorithm, fileKey, ivSeed),
     embeddedFileHandler: createHandlerForFilter(
       embeddedFileFilter,
       cryptFilters,
       algorithm,
       fileKey,
+      ivSeed
     ),
   };
+}
+
+function deriveFilterSeed(filterName: string | undefined, ivSeed?: Uint8Array) {
+  if (!filterName || !ivSeed) return ivSeed;
+  return createHash('sha256')
+    .update(ivSeed)
+    .update(new TextEncoder().encode(filterName))
+    .digest()
 }
 
 /**
@@ -70,6 +80,7 @@ function createHandlerForFilter(
   cryptFilters: Map<string, { cfm: string }> | undefined,
   defaultAlgorithm: "RC4" | "AES-128" | "AES-256",
   fileKey: Uint8Array,
+  ivSeed?: Uint8Array,
 ): AbstractSecurityHandler {
   // Identity filter = no encryption
   if (filterName === "Identity") {
@@ -89,13 +100,13 @@ function createHandlerForFilter(
         case "AESV2":
           return new AES128Handler(fileKey);
         case "AESV3":
-          return new AES256Handler(fileKey);
+          return new AES256Handler(fileKey, deriveFilterSeed(filterName, ivSeed));
       }
     }
   }
 
   // Fall back to default algorithm
-  return createHandlerForAlgorithm(defaultAlgorithm, fileKey);
+  return createHandlerForAlgorithm(defaultAlgorithm, fileKey, deriveFilterSeed(filterName, ivSeed));
 }
 
 /**
@@ -104,6 +115,7 @@ function createHandlerForFilter(
 function createHandlerForAlgorithm(
   algorithm: "RC4" | "AES-128" | "AES-256",
   fileKey: Uint8Array,
+  ivSeed?: Uint8Array,
 ): AbstractSecurityHandler {
   switch (algorithm) {
     case "RC4":
@@ -111,6 +123,6 @@ function createHandlerForAlgorithm(
     case "AES-128":
       return new AES128Handler(fileKey);
     case "AES-256":
-      return new AES256Handler(fileKey);
+      return new AES256Handler(fileKey, ivSeed);
   }
 }

@@ -50,6 +50,12 @@ export interface ProtectionOptions {
   fileEncryptionKey?: Uint8Array;
 
   /**
+   * iv seed for deterministic data encryption.
+   * If omitted a random 32 byte iv is generated for every new encryption call.
+   */
+  ivSeed?: Uint8Array;
+
+  /**
    * File Id.
    * If omitted two random 16 byte sub ids are generated and used.
    */

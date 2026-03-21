@@ -13,6 +13,7 @@
 
 import { cbc, ecb } from "@noble/ciphers/aes.js";
 import { randomBytes } from "@noble/ciphers/utils.js";
+import { createHash } from "crypto";
 
 /** AES block size in bytes (always 16) */
 export const AES_BLOCK_SIZE = 16;
@@ -27,11 +28,11 @@ export const AES_BLOCK_SIZE = 16;
  * @param plaintext - Data to encrypt
  * @returns IV (16 bytes) + ciphertext
  */
-export function aesEncrypt(key: Uint8Array, plaintext: Uint8Array): Uint8Array {
+export function aesEncrypt(key: Uint8Array, plaintext: Uint8Array, nextIV?: () => Uint8Array): Uint8Array {
   validateAesKey(key);
 
   // Generate random IV
-  const iv = randomBytes(AES_BLOCK_SIZE);
+  const iv = nextIV ? nextIV() : randomBytes(AES_BLOCK_SIZE);
 
   // Encrypt with CBC mode (PKCS#7 padding enabled by default)
   const cipher = cbc(key, iv);

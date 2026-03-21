@@ -145,7 +145,7 @@ export function generateEncryption(options: ProtectionOptions): GeneratedEncrypt
   };
 
   // Create and authenticate the security handler
-  const securityHandler = new StandardSecurityHandler(encryptionDictData, id1);
+  const securityHandler = new StandardSecurityHandler(encryptionDictData, id1, options.ivSeed);
 
   // Authenticate with user password (empty or provided)
   const authResult = securityHandler.authenticate(userPassword);

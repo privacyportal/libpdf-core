@@ -60,6 +60,7 @@ export class StandardSecurityHandler {
   constructor(
     private readonly encryptDict: EncryptionDict,
     private readonly fileId: Uint8Array,
+    private readonly ivSeed?: Uint8Array,
   ) {}
 
   /**
@@ -393,7 +394,7 @@ export class StandardSecurityHandler {
     this.encryptionKey = encryptionKey;
     this.authenticated = true;
     this.isOwner = isOwner;
-    this.handlers = createHandlers(this.encryptDict, encryptionKey);
+    this.handlers = createHandlers(this.encryptDict, encryptionKey, this.ivSeed);
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

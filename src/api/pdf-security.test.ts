@@ -345,126 +345,145 @@ describe("PDF security API", () => {
     });
   });
 
-  describe("setProtection() round-trip", () => {
-    it("encrypts an unencrypted PDF with AES-256", async () => {
-      const bytes = await loadFixture("basic", "rot0.pdf");
-      const pdf = await PDF.load(bytes);
+  for (const deterministic of [false, true]) {
+    describe(`setProtection() round-trip${deterministic ? ' (deterministic encryption)' : ''}`, () => {
+      it("encrypts an unencrypted PDF with AES-256", async () => {
+        const bytes = await loadFixture("basic", "rot0.pdf");
+        const pdf = await PDF.load(bytes);
+        pdf.setCreationDate(new Date('2026-01-01T00:00:00Z'));
+        pdf.setModificationDate(new Date('2026-01-01T00:00:00Z'));
 
-      pdf.setProtection({
-        userPassword: "secret",
-        ownerPassword: "admin",
+        const protectionOptions = {
+          userPassword: "secret",
+          ownerPassword: "admin",
+          ...(deterministic && {
+            fileEncryptionKey: new Uint8Array([
+              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+              22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+            ]),
+            fileId: [
+              new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+              new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
+            ] as [Uint8Array, Uint8Array],
+            ivSeed: new Uint8Array([
+              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+              22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+            ]),
+          })
+        }
+        pdf.setProtection(protectionOptions);
+
+        const savedBytes = await pdf.save();
+
+        // Without password, document loads but is not authenticated
+        const unauthenticated = await PDF.load(savedBytes);
+        expect(unauthenticated.isEncrypted).toBe(true);
+        expect(unauthenticated.isAuthenticated).toBe(false);
+
+        // Should open with correct password
+        const reloaded = await PDF.load(savedBytes, { credentials: "secret" });
+        expect(reloaded.isEncrypted).toBe(true);
+        expect(reloaded.getSecurity().algorithm).toBe("AES-256");
       });
 
-      const savedBytes = await pdf.save();
+      it("applies permission restrictions", async () => {
+        const bytes = await loadFixture("basic", "rot0.pdf");
+        const pdf = await PDF.load(bytes);
 
-      // Without password, document loads but is not authenticated
-      const unauthenticated = await PDF.load(savedBytes);
-      expect(unauthenticated.isEncrypted).toBe(true);
-      expect(unauthenticated.isAuthenticated).toBe(false);
+        pdf.setProtection({
+          userPassword: "user",
+          ownerPassword: "owner",
+          permissions: {
+            print: true,
+            copy: false,
+            modify: false,
+          },
+        });
 
-      // Should open with correct password
-      const reloaded = await PDF.load(savedBytes, { credentials: "secret" });
-      expect(reloaded.isEncrypted).toBe(true);
-      expect(reloaded.getSecurity().algorithm).toBe("AES-256");
-    });
+        const savedBytes = await pdf.save();
+        const reloaded = await PDF.load(savedBytes, { credentials: "user" });
 
-    it("applies permission restrictions", async () => {
-      const bytes = await loadFixture("basic", "rot0.pdf");
-      const pdf = await PDF.load(bytes);
-
-      pdf.setProtection({
-        userPassword: "user",
-        ownerPassword: "owner",
-        permissions: {
-          print: true,
-          copy: false,
-          modify: false,
-        },
+        const perms = reloaded.getPermissions();
+        expect(perms.print).toBe(true);
+        expect(perms.copy).toBe(false);
+        expect(perms.modify).toBe(false);
       });
 
-      const savedBytes = await pdf.save();
-      const reloaded = await PDF.load(savedBytes, { credentials: "user" });
+      it("allows empty user password (opens without password)", async () => {
+        const bytes = await loadFixture("basic", "rot0.pdf");
+        const pdf = await PDF.load(bytes);
 
-      const perms = reloaded.getPermissions();
-      expect(perms.print).toBe(true);
-      expect(perms.copy).toBe(false);
-      expect(perms.modify).toBe(false);
-    });
+        pdf.setProtection({
+          ownerPassword: "owner",
+          permissions: { copy: false },
+        });
 
-    it("allows empty user password (opens without password)", async () => {
-      const bytes = await loadFixture("basic", "rot0.pdf");
-      const pdf = await PDF.load(bytes);
+        const savedBytes = await pdf.save();
 
-      pdf.setProtection({
-        ownerPassword: "owner",
-        permissions: { copy: false },
+        // Should open without password
+        const reloaded = await PDF.load(savedBytes);
+        expect(reloaded.isEncrypted).toBe(true);
+        expect(reloaded.getPermissions().copy).toBe(false);
       });
 
-      const savedBytes = await pdf.save();
+      it("owner password grants full permissions", async () => {
+        const bytes = await loadFixture("basic", "rot0.pdf");
+        const pdf = await PDF.load(bytes);
 
-      // Should open without password
-      const reloaded = await PDF.load(savedBytes);
-      expect(reloaded.isEncrypted).toBe(true);
-      expect(reloaded.getPermissions().copy).toBe(false);
+        pdf.setProtection({
+          userPassword: "user",
+          ownerPassword: "owner",
+          permissions: { copy: false, modify: false },
+        });
+
+        const savedBytes = await pdf.save();
+        const reloaded = await PDF.load(savedBytes, { credentials: "owner" });
+
+        // Owner should have full access
+        const perms = reloaded.getPermissions();
+        expect(perms.copy).toBe(true);
+        expect(perms.modify).toBe(true);
+        expect(reloaded.hasOwnerAccess()).toBe(true);
+      });
     });
 
-    it("owner password grants full permissions", async () => {
-      const bytes = await loadFixture("basic", "rot0.pdf");
-      const pdf = await PDF.load(bytes);
+    describe("re-saving encrypted PDFs", () => {
+      it("preserves encryption when saving without security changes", async () => {
+        // Load an encrypted PDF
+        const bytes = await loadFixture("encryption", "PasswordSample-256bit.pdf");
+        const pdf = await PDF.load(bytes, { credentials: "owner" });
 
-      pdf.setProtection({
-        userPassword: "user",
-        ownerPassword: "owner",
-        permissions: { copy: false, modify: false },
+        expect(pdf.isEncrypted).toBe(true);
+        expect(pdf.isAuthenticated).toBe(true);
+
+        // Make a modification (add metadata)
+        pdf.setTitle("Modified Document");
+
+        // Save without calling removeProtection() or setProtection()
+        const savedBytes = await pdf.save();
+
+        // The saved document should still be encrypted
+        const reloaded = await PDF.load(savedBytes, { credentials: "owner" });
+        expect(reloaded.isEncrypted).toBe(true);
+        expect(reloaded.getSecurity().algorithm).toBe("AES-256");
+
+        // And the modification should be there
+        expect(reloaded.getTitle()).toBe("Modified Document");
       });
 
-      const savedBytes = await pdf.save();
-      const reloaded = await PDF.load(savedBytes, { credentials: "owner" });
+      it("requires password to open re-saved encrypted PDF", async () => {
+        const bytes = await loadFixture("encryption", "PasswordSample-256bit.pdf");
+        const pdf = await PDF.load(bytes, { credentials: "owner" });
 
-      // Owner should have full access
-      const perms = reloaded.getPermissions();
-      expect(perms.copy).toBe(true);
-      expect(perms.modify).toBe(true);
-      expect(reloaded.hasOwnerAccess()).toBe(true);
+        // Modify and save
+        pdf.setTitle("Modified");
+        const savedBytes = await pdf.save();
+
+        // Without password, should load but not authenticate
+        const unauthenticated = await PDF.load(savedBytes);
+        expect(unauthenticated.isEncrypted).toBe(true);
+        expect(unauthenticated.isAuthenticated).toBe(false);
+      });
     });
-  });
-
-  describe("re-saving encrypted PDFs", () => {
-    it("preserves encryption when saving without security changes", async () => {
-      // Load an encrypted PDF
-      const bytes = await loadFixture("encryption", "PasswordSample-256bit.pdf");
-      const pdf = await PDF.load(bytes, { credentials: "owner" });
-
-      expect(pdf.isEncrypted).toBe(true);
-      expect(pdf.isAuthenticated).toBe(true);
-
-      // Make a modification (add metadata)
-      pdf.setTitle("Modified Document");
-
-      // Save without calling removeProtection() or setProtection()
-      const savedBytes = await pdf.save();
-
-      // The saved document should still be encrypted
-      const reloaded = await PDF.load(savedBytes, { credentials: "owner" });
-      expect(reloaded.isEncrypted).toBe(true);
-      expect(reloaded.getSecurity().algorithm).toBe("AES-256");
-
-      // And the modification should be there
-      expect(reloaded.getTitle()).toBe("Modified Document");
-    });
-
-    it("requires password to open re-saved encrypted PDF", async () => {
-      const bytes = await loadFixture("encryption", "PasswordSample-256bit.pdf");
-      const pdf = await PDF.load(bytes, { credentials: "owner" });
-
-      // Modify and save
-      pdf.setTitle("Modified");
-      const savedBytes = await pdf.save();
-
-      // Without password, should load but not authenticate
-      const unauthenticated = await PDF.load(savedBytes);
-      expect(unauthenticated.isEncrypted).toBe(true);
-      expect(unauthenticated.isAuthenticated).toBe(false);
-    });
-  });
+  }
 });

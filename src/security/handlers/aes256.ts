@@ -12,12 +12,33 @@
 
 import { aesDecrypt, aesEncrypt } from "../ciphers/aes";
 import { AbstractSecurityHandler } from "./abstract";
+import { createHash } from 'crypto'
+
+function makeIVGenerator(seed: Uint8Array) {
+  let counter = 0
+  return function nextIV(): Uint8Array {
+    const iv = createHash('sha256')
+      .update(seed)
+      .update(Buffer.from([counter++]))
+      .digest()
+      .subarray(0, 16)
+    return iv
+  }
+}
 
 export class AES256Handler extends AbstractSecurityHandler {
   readonly algorithm = "AES-256" as const;
+  nextIV: undefined | (() => Uint8Array);
+
+  constructor(readonly fileKey: Uint8Array, ivSeed?: Uint8Array) {
+    super(fileKey);
+    if (ivSeed) {
+      this.nextIV = makeIVGenerator(ivSeed);
+    }
+  }
 
   protected encrypt(data: Uint8Array, _objNum: number, _genNum: number): Uint8Array {
-    return aesEncrypt(this.fileKey, data);
+    return aesEncrypt(this.fileKey, data, this.nextIV);
   }
 
   protected decrypt(data: Uint8Array, _objNum: number, _genNum: number): Uint8Array {
