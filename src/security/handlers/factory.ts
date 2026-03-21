@@ -5,7 +5,8 @@
  * the encryption version, revision, and crypt filter configuration.
  */
 
-import { createHash } from "crypto";
+import { sha256 } from "@noble/hashes/sha2.js";
+
 import type { EncryptionDict } from "../encryption-dict";
 import { type AbstractSecurityHandler, IdentityHandler } from "./abstract";
 import { AES128Handler } from "./aes128";
@@ -35,7 +36,11 @@ export interface HandlerConfig {
  * @param fileKey - File encryption key (from password verification)
  * @returns Handler configuration for strings, streams, and embedded files
  */
-export function createHandlers(encryptDict: EncryptionDict, fileKey: Uint8Array, ivSeed?: Uint8Array): HandlerConfig {
+export function createHandlers(
+  encryptDict: EncryptionDict,
+  fileKey: Uint8Array,
+  ivSeed?: Uint8Array,
+): HandlerConfig {
   const { version, algorithm, stringFilter, streamFilter, embeddedFileFilter, cryptFilters } =
     encryptDict;
 
@@ -59,17 +64,16 @@ export function createHandlers(encryptDict: EncryptionDict, fileKey: Uint8Array,
       cryptFilters,
       algorithm,
       fileKey,
-      ivSeed
+      ivSeed,
     ),
   };
 }
 
 function deriveFilterSeed(filterName: string | undefined, ivSeed?: Uint8Array) {
-  if (!filterName || !ivSeed) return ivSeed;
-  return createHash('sha256')
-    .update(ivSeed)
-    .update(new TextEncoder().encode(filterName))
-    .digest()
+  if (!filterName || !ivSeed) {
+    return ivSeed;
+  }
+  return sha256.create().update(ivSeed).update(new TextEncoder().encode(filterName)).digest();
 }
 
 /**

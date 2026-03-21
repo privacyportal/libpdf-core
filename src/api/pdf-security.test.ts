@@ -346,31 +346,31 @@ describe("PDF security API", () => {
   });
 
   for (const deterministic of [false, true]) {
-    describe(`setProtection() round-trip${deterministic ? ' (deterministic encryption)' : ''}`, () => {
+    describe(`setProtection() round-trip${deterministic ? " (deterministic encryption)" : ""}`, () => {
       it("encrypts an unencrypted PDF with AES-256", async () => {
         const bytes = await loadFixture("basic", "rot0.pdf");
         const pdf = await PDF.load(bytes);
-        pdf.setCreationDate(new Date('2026-01-01T00:00:00Z'));
-        pdf.setModificationDate(new Date('2026-01-01T00:00:00Z'));
+        pdf.setCreationDate(new Date("2026-01-01T00:00:00Z"));
+        pdf.setModificationDate(new Date("2026-01-01T00:00:00Z"));
 
         const protectionOptions = {
           userPassword: "secret",
           ownerPassword: "admin",
           ...(deterministic && {
             fileEncryptionKey: new Uint8Array([
-              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-              22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+              25, 26, 27, 28, 29, 30, 31, 32,
             ]),
             fileId: [
               new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
               new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]),
             ] as [Uint8Array, Uint8Array],
             ivSeed: new Uint8Array([
-              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-              22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+              25, 26, 27, 28, 29, 30, 31, 32,
             ]),
-          })
-        }
+          }),
+        };
         pdf.setProtection(protectionOptions);
 
         const savedBytes = await pdf.save();

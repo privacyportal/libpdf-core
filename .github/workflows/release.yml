@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag_suffix:
-        description: 'add a suffix to the tag'
+        description: "add a suffix to the tag"
         required: false
-        default: ''
+        default: ""
         type: string
 
 permissions:
@@ -48,9 +48,9 @@ jobs:
         id: create_tag
         uses: butlerlogic/action-autotag@a825539276d173dbaa8d39fb45024d85d292f4f3 # 1.1.2
         with:
-          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           strategy: package
-          tag_prefix: 'v'
+          tag_prefix: "v"
           tag_suffix: ${{ github.event.inputs.tag_suffix }}
 
       - name: Create GitHub Release

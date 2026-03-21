@@ -2,7 +2,7 @@ name: Upstream sync check
 
 on:
   schedule:
-    - cron: '0 9 1,15 * *'
+    - cron: "0 9 1,15 * *"
   workflow_dispatch:
 
 permissions:
