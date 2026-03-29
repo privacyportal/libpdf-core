@@ -231,6 +231,7 @@ export type {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export { parsePem, type PemBlock } from "./helpers/pem";
+export { parsePdfDate } from "./helpers/format";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Annotations
